@@ -14,16 +14,39 @@ services:
     ports:
       - "6379:6379"
 
+
   postgres:
     image: postgres
     container_name: postgres
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: dbname
-      DATABASE_URL: 'postgres://user:password@localhost:5432/dbname'
+      POSTGRES_DB: dev
+      DATABASE_URL: 'postgres://user:password@localhost:5432/dev'
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+
+#  intellect_server:
+#    container_name: intellect_server
+#    build: .
+#    volumes:
+#      - .:/usr/src/app
+#    ports:
+#      - "3000:3000"
+#    command: npx tsx dist/server # Запуск REST API сервера
+#    depends_on: 
+#      - redis
+#      - postgres
+
+#  intellect_runner:
+#    container_name: intellect_runner
+#    build: .
+#    volumes:
+#      - .:/usr/src/app
+#    command: npx tsx dist/runner # Запуск обработчика задач
+#    depends_on:
+#      - redis
+#      - postgres
 

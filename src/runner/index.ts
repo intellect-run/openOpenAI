@@ -284,31 +284,27 @@ export const worker = new Worker<JobData, JobResult>(
 
         let messageText = ''
 
-        const handleUpdate = async (chunk) => {
-          messageText += chunk
-
-          await prisma.message.update({
-            where: { id: newMessageId },
-            data: {
-              content: [
-                {
-                  type: 'text',
-                  text: {
-                    value: messageText,
-                    annotations: []
-                  }
-                }
-              ]
-            }
-          })
-
-          // console.log("newMsg: ", newMsg)
-        }
-
         const chatCompletionParams: Parameters<typeof chatModel.run>[0] = {
           messages: chatMessages,
           model: assistant.model,
-          handleUpdate: handleUpdate,
+          // @ts-ignore
+          handleUpdate: async (chunk) => {
+            messageText += chunk
+            await prisma.message.update({
+              where: { id: newMessageId },
+              data: {
+                content: [
+                  {
+                    type: 'text',
+                    text: {
+                      value: messageText,
+                      annotations: []
+                    }
+                  }
+                ]
+              }
+            })
+          },
           tools: convertAssistantToolsToChatMessageTools(assistant.tools),
           tool_choice:
             runSteps.length >= config.runs.maxRunSteps ? 'none' : 'auto'

@@ -15,7 +15,7 @@ export namespace runs {
   // We set a maximum number of run steps to keep the underlying LLM from
   // looping indefinitely. With parallel tool calls, we really shouldn't have
   // too many steps to resolve a run.
-  export const maxRunSteps = 4
+  export const maxRunSteps = 1
 }
 
 export namespace queue {

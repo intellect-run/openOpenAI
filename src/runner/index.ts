@@ -138,6 +138,7 @@ export const worker = new Worker<JobData, JobResult>(
           )
           throw new Error(`Invalid run "${runId}": thread does not exist`)
         }
+        console.log('!!! assistant:', assistant)
 
         if (!assistant) {
           console.error(
@@ -173,9 +174,14 @@ export const worker = new Worker<JobData, JobResult>(
             thread_id: thread.id
           },
           orderBy: {
-            created_at: 'asc'
-          }
+            created_at: 'desc'
+          },
+          take: Number(
+            assistant.metadata.memoryLimit ? assistant.metadata.memoryLimit : 3
+          )
         })
+
+        messages.reverse()
 
         // TODO: handle image_file attachments and annotations
         let chatMessages: Prompt.Msg[] = messages
@@ -227,7 +233,11 @@ export const worker = new Worker<JobData, JobResult>(
 
         // TODO: custom code interpreter instructions
         const assistantSystemtMessage: Prompt.Msg = Msg.system(
-          `${run.instructions ? `${run.instructions}\n\n` : ''}${
+          `${
+            assistant.instructions
+              ? `${assistant.instructions}\n\n`
+              : `${run.instructions}`
+          }${
             isRetrievalEnabled
               ? `You can use the "retrieval" tool to retrieve relevant context from the following attached files:\n${files
                   .map((file) => '- ' + getNormalizedFileName(file))
@@ -252,18 +262,62 @@ export const worker = new Worker<JobData, JobResult>(
           }
         }
 
+        const newMsg = await prisma.message.create({
+          data: {
+            content: [
+              {
+                type: 'text',
+                text: {
+                  value: '...',
+                  annotations: []
+                }
+              }
+            ],
+            role: 'assistant',
+            assistant_id: assistant.id,
+            thread_id: thread.id,
+            run_id: run.id
+          }
+        })
+
+        let newMessageId = newMsg.id
+
+        let messageText = ''
+
+        const handleUpdate = async (chunk) => {
+          messageText += chunk
+
+          await prisma.message.update({
+            where: { id: newMessageId },
+            data: {
+              content: [
+                {
+                  type: 'text',
+                  text: {
+                    value: messageText,
+                    annotations: []
+                  }
+                }
+              ]
+            }
+          })
+
+          // console.log("newMsg: ", newMsg)
+        }
+
         const chatCompletionParams: Parameters<typeof chatModel.run>[0] = {
           messages: chatMessages,
           model: assistant.model,
+          handleUpdate: handleUpdate,
           tools: convertAssistantToolsToChatMessageTools(assistant.tools),
           tool_choice:
             runSteps.length >= config.runs.maxRunSteps ? 'none' : 'auto'
         }
 
-        console.log(
-          `Job "${job.id}" run "${run.id}": >>> chat completion call`,
-          chatCompletionParams
-        )
+        // console.log(
+        //   `Job "${job.id}" run "${run.id}": >>> chat completion call`,
+        //   chatCompletionParams
+        // )
 
         // Invoke the chat model with the thread context, asssistant config,
         // any tool outputs from previous run steps, and available tools
@@ -527,7 +581,10 @@ export const worker = new Worker<JobData, JobResult>(
           const completedAt = new Date()
 
           // TODO: handle annotations
-          const newMessage = await prisma.message.create({
+          console.log('run: ', res)
+
+          await prisma.message.update({
+            where: { id: newMessageId },
             data: {
               content: [
                 {
@@ -538,10 +595,10 @@ export const worker = new Worker<JobData, JobResult>(
                   }
                 }
               ],
-              role: message.role,
-              assistant_id: assistant.id,
-              thread_id: thread.id,
-              run_id: run.id
+              metadata: {
+                usage: res.usage,
+                cost: res.cost
+              }
             }
           })
 
@@ -556,7 +613,7 @@ export const worker = new Worker<JobData, JobResult>(
               step_details: {
                 type: 'message_creation',
                 message_creation: {
-                  message_id: newMessage.id
+                  message_id: newMessageId
                 }
               }
             }

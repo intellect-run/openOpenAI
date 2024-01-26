@@ -17,6 +17,7 @@ app.openapi(routes.listMessages, async (c) => {
     orderBy: {
       created_at: 'desc'
     },
+
     ...params,
     where: {
       ...params?.where,

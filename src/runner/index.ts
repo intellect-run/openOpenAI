@@ -305,9 +305,16 @@ export const worker = new Worker<JobData, JobResult>(
               }
             })
           },
-          tools: convertAssistantToolsToChatMessageTools(assistant.tools),
+          tools:
+            assistant.tools.length > 0
+              ? convertAssistantToolsToChatMessageTools(assistant.tools)
+              : undefined,
           tool_choice:
-            runSteps.length >= config.runs.maxRunSteps ? 'none' : 'auto'
+            assistant.tools.length > 0
+              ? runSteps.length >= config.runs.maxRunSteps
+                ? 'none'
+                : 'auto'
+              : undefined
         }
 
         // console.log(
